@@ -5,10 +5,10 @@ class CameraTabPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
+        children: [
           Icon(Icons.camera_alt, size: 100, color: Colors.orange),
           Text('Camera Page', style: TextStyle(fontSize: 24)),
         ],

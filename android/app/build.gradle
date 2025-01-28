@@ -1,44 +1,44 @@
+// android/app/build.gradle
+
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
+    id 'com.google.gms.google-services' // Firebase services plugin
 }
 
 android {
-    namespace = "com.example.mobile_app"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    namespace = "com.example.mobile_app" // Define application namespace
+    compileSdk = flutter.compileSdkVersion // Flutter compile SDK version
+    ndkVersion = flutter.ndkVersion // NDK version for native support
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17 // Use Java 17
+        targetCompatibility = JavaVersion.VERSION_17 // Target Java 17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = "17" // Ensure Kotlin compatibility with Java 17
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.mobile_app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        applicationId = "com.example.mobile_app" // Application ID for Android
+        minSdkVersion 21 // Minimum SDK version (ensure this is set as required)
+        targetSdk = flutter.targetSdkVersion // Target SDK version (same as Flutter target SDK version)
+        versionCode = flutter.versionCode.toInteger() // Use Flutter version code
+        versionName = flutter.versionName // Use Flutter version name
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // Ensure your release signing config is correctly configured.
+            signingConfig = signingConfigs.debug // Update this with a proper release signing config
         }
     }
 }
 
 flutter {
-    source = "../.."
+    source = "../.." // Flutter source directory
 }
+

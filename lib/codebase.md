@@ -97,21 +97,19 @@ class DefaultFirebaseOptions {
 ```dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; // Import Firebase Options
+import 'package:mobile_app/pages/setting_page.dart';
+import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'pages/login_page.dart';
-import 'pages/main_page.dart';
+import 'package:mobile_app/pages/login_page.dart';
+import 'package:mobile_app/pages/main_page.dart';
+import 'package:mobile_app/pages/cart_page.dart';
+import 'package:mobile_app/pages/map_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform, // ✅ Ensures Web Firebase works
-    );
-  } catch (e) {
-    debugPrint("Firebase initialization error: $e");
-  }
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(const MyApp());
 }
@@ -123,14 +121,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Firebase Auth App',
+      title: 'Sports Shop',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const AuthWrapper(),
+      home: const AuthWrapper(), // ✅ Now wrapped with Auth
     );
   }
 }
 
-// ✅ Checks if User is Logged In
+// ✅ AUTH LOGIC: Check if user is logged in
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -140,13 +138,60 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         if (snapshot.hasData) {
-          return const MainPage(); // ✅ Logged-in users go to MainPage
+          return const HomeScreen(); // ✅ Show HomeScreen if logged in
         }
-        return const LoginPage(); // ❌ Not logged in, show LoginPage
+        return const LoginPage(); // ❌ Show LoginPage if not logged in
       },
+    );
+  }
+}
+
+// ✅ Bottom Navigation Integrated
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _pages = [
+    const MainPage(),
+    const CartPage(cartItems: [],),
+    const MapPage(),
+    const SettingsPage(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: "Cart"),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: "Map"),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
+        ],
+      ),
     );
   }
 }
@@ -174,6 +219,59 @@ class CameraTabPage extends StatelessWidget {
     );
   }
 }
+
+```
+
+# pages\cart_item.dart
+
+```dart
+
+```
+
+# pages\cart_page.dart
+
+```dart
+import 'package:flutter/material.dart';
+
+class CartItem {
+  final String name;
+  final String image;
+  final double price;
+  int quantity;
+
+  CartItem({required this.name, required this.image, required this.price, this.quantity = 1});
+}
+
+class CartPage extends StatelessWidget {
+  final List<CartItem> cartItems;
+
+  const CartPage({super.key, required this.cartItems});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Shopping Cart")),
+      body: ListView.builder(
+        itemCount: cartItems.length,
+        itemBuilder: (context, index) {
+          final item = cartItems[index];
+          return ListTile(
+            leading: Image.asset(item.image, width: 50),
+            title: Text(item.name),
+            subtitle: Text("\$${item.price} x ${item.quantity}"),
+            trailing: Text("\$${item.price * item.quantity}"),
+          );
+        },
+      ),
+    );
+  }
+}
+
+```
+
+# pages\chatbot_page.dart
+
+```dart
 
 ```
 
@@ -290,6 +388,7 @@ class _LoginPageState extends State<LoginPage> {
 
 ```dart
 import 'package:flutter/material.dart';
+import 'cart_page.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -299,56 +398,96 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int _selectedIndex = 0;
+  final List<CartItem> cartItems = [];
 
-  // Method to handle the tab changes
-  void _onItemTapped(int index) {
+  void _addToCart(CartItem item) {
     setState(() {
-      _selectedIndex = index;
+      int index = cartItems.indexWhere((element) => element.name == item.name);
+      if (index != -1) {
+        cartItems[index].quantity++;
+      } else {
+        cartItems.add(item);
+      }
     });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("${item.name} added to cart!")),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Main Page'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart),
-            onPressed: () {
-              // Handle shopping cart click
-              print('Shopping Cart clicked');
-            },
+      appBar: AppBar(title: const Text('Sports Shop')),
+      body: ListView(
+        children: [
+          ProductCard(
+            image: 'assets/football.jpg',
+            title: 'Football',
+            description: 'High-quality football for games and practice.',
+            price: 60,
+            addToCart: _addToCart,
+          ),
+          ProductCard(
+            image: 'assets/baseball.jpg',
+            title: 'Baseball',
+            description: 'Durable baseball for all players.',
+            price: 20,
+            addToCart: _addToCart,
+          ),
+          ProductCard(
+            image: 'assets/basketball.jpg',
+            title: 'Basketball',
+            description: 'Premium basketball with excellent grip.',
+            price: 90,
+            addToCart: _addToCart,
           ),
         ],
       ),
-      body: _selectedIndex == 0
-          ? const Center(child: Text('Main Content'))
-          : _selectedIndex == 1
-              ? const Center(child: Text('Map Content'))
-              : _selectedIndex == 2
-                  ? const Center(child: Text('Camera Content'))
-                  : const Center(child: Text('Settings Content')),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Main',
+    );
+  }
+}
+
+class ProductCard extends StatelessWidget {
+  final String image;
+  final String title;
+  final String description;
+  final double price;
+  final Function(CartItem) addToCart;
+
+  const ProductCard({
+    required this.image,
+    required this.title,
+    required this.description,
+    required this.price,
+    required this.addToCart,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Image.asset(image, height: 200, width: double.infinity, fit: BoxFit.cover),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Map',
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Text(description, style: const TextStyle(fontSize: 14)),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.camera_alt),
-            label: 'Camera',
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('\$$price', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
+          ElevatedButton(
+            onPressed: () {
+              addToCart(CartItem(name: title, image: image, price: price));
+            },
+            child: const Text("Add to Cart"),
           ),
         ],
       ),
@@ -362,19 +501,27 @@ class _MainPageState extends State<MainPage> {
 
 ```dart
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-class MapTabPage extends StatelessWidget {
-  const MapTabPage({super.key});
+class MapPage extends StatefulWidget {
+  const MapPage({super.key});
+
+  @override
+  _MapPageState createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  static const CameraPosition _initialPosition = CameraPosition(
+    target: LatLng(37.7749, -122.4194),
+    zoom: 12.0,
+  );
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.map, size: 100, color: Colors.green),
-          Text('Map Page', style: TextStyle(fontSize: 24)),
-        ],
+    return Scaffold(
+      appBar: AppBar(title: const Text("Map")),
+      body: const GoogleMap(
+        initialCameraPosition: _initialPosition,
       ),
     );
   }
@@ -386,6 +533,12 @@ class MapTabPage extends StatelessWidget {
 
 ```dart
 // TODO Implement this library.
+```
+
+# pages\profile_page.dart
+
+```dart
+
 ```
 
 # pages\register_page.dart
@@ -514,24 +667,6 @@ class _RegisterPageState extends State<RegisterPage> {
 # pages\setting_page.dart
 
 ```dart
-import 'package:flutter/material.dart';
-
-class SettingTabPage extends StatelessWidget {
-  const SettingTabPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.settings, size: 100, color: Colors.red),
-          Text('Settings Page', style: TextStyle(fontSize: 24)),
-        ],
-      ),
-    );
-  }
-}
 
 ```
 

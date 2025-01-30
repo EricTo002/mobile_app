@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'main_page.dart';
-import 'register_page.dart'; // Import RegisterPage for navigation
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key}); // ✅ Add const
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -29,7 +29,7 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) { // Ensure widget is still active before navigation
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Welcome, ${userCredential.user!.email}!')),
         );

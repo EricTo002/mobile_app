@@ -38,14 +38,16 @@ class _RegisterPageState extends State<RegisterPage> {
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) { // Ensures widget is still active before calling Navigator
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Registration successful! Welcome, ${userCredential.user!.email}')),
         );
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(
+            builder: (context) => LoginPage(), // ✅ Removed 'const' from here
+          ),
         );
       }
     } on FirebaseAuthException catch (e) {

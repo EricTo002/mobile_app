@@ -11,21 +11,6 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int _selectedIndex = 0;
-
-  static const List<Widget> _pages = [
-    Center(child: Text('Main Page Content')),
-    MapPage(),  // ✅ Google Map Page
-    CameraTabPage(),
-    SettingTabPage(),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -97,20 +97,19 @@ class DefaultFirebaseOptions {
 ```dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:mobile_app/pages/setting_page.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile_app/pages/login_page.dart';
 import 'package:mobile_app/pages/main_page.dart';
-import 'package:mobile_app/pages/cart_page.dart';
 import 'package:mobile_app/pages/map_page.dart';
+import 'package:mobile_app/pages/camera_page.dart';
+import 'package:mobile_app/pages/chatbot_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
   runApp(const MyApp());
 }
 
@@ -123,12 +122,11 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Sports Shop',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const AuthWrapper(), // ✅ Now wrapped with Auth
+      home: const AuthWrapper(),
     );
   }
 }
 
-// ✅ AUTH LOGIC: Check if user is logged in
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -142,37 +140,30 @@ class AuthWrapper extends StatelessWidget {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.hasData) {
-          return const HomeScreen(); // ✅ Show HomeScreen if logged in
-        }
-        return const LoginPage(); // ❌ Show LoginPage if not logged in
+        return snapshot.hasData ? const HomeScreen() : const LoginPage();
       },
     );
   }
 }
 
-// ✅ Bottom Navigation Integrated
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-
   final List<Widget> _pages = [
     const MainPage(),
-    const CartPage(cartItems: [],),
     const MapPage(),
-    const SettingsPage(),
+    const CameraTabPage(),
+    const ChatbotPage(),
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   @override
@@ -180,22 +171,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: "Cart"),
-          BottomNavigationBarItem(icon: Icon(Icons.map), label: "Map"),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
+          BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: 'Camera'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chatbot'),
         ],
       ),
     );
   }
 }
-
 ```
 
 # pages\camera_page.dart
@@ -225,6 +213,19 @@ class CameraTabPage extends StatelessWidget {
 # pages\cart_item.dart
 
 ```dart
+class CartItem {
+  final String name;
+  final String image;
+  final double price;
+  int quantity;
+
+  CartItem({
+    required this.name,
+    required this.image,
+    required this.price,
+    this.quantity = 1,
+  });
+}
 
 ```
 
@@ -266,12 +267,221 @@ class CartPage extends StatelessWidget {
     );
   }
 }
-
 ```
 
 # pages\chatbot_page.dart
 
 ```dart
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/scheduler.dart';
+
+class ChatMessage {
+  final String content;
+  final bool isUser;
+
+  ChatMessage({required this.content, required this.isUser});
+}
+
+class ChatbotPage extends StatefulWidget {
+  const ChatbotPage({super.key});
+
+  @override
+  _ChatbotPageState createState() => _ChatbotPageState();
+}
+
+class _ChatbotPageState extends State<ChatbotPage> {
+  final TextEditingController _controller = TextEditingController();
+  final List<ChatMessage> _messages = [];
+  final ScrollController _scrollController = ScrollController();
+  final Dio _dio = Dio();
+  bool _isLoading = false;
+  int lastIndex = 0;
+
+  // Correct API URL and API key
+  static const String _apiKey = "sk-cjGCB9tIjunKEj0MBLrl5SKJSJ1VwuynAozFe5TMxxhSlDjC";  // Replace with actual key
+  static const String _baseUrl = "https://api.chatanywhere.tech/v1/chat/completions";  // Fixed URL
+
+  void _scrollToBottom() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    if (_controller.text.isEmpty || _isLoading) return;
+
+    final userMessage = _controller.text;
+    _controller.clear();
+
+    setState(() {
+      _messages.add(ChatMessage(content: userMessage, isUser: true));
+      _messages.add(ChatMessage(content: "", isUser: false));
+      lastIndex = _messages.length - 1;
+      _isLoading = true;
+    });
+
+    _scrollToBottom();
+
+    try {
+      final response = await _dio.post(
+        _baseUrl,  // Correct API URL
+        options: Options(
+          headers: {
+            "Authorization": "Bearer $_apiKey",  // Ensure valid API Key
+            "Content-Type": "application/json",
+          },
+          responseType: ResponseType.stream,  // Handle streaming response
+        ),
+        data: {
+          "model": "gpt-3.5-turbo",
+          "messages": [
+            {"role": "user", "content": userMessage}
+          ],
+          "stream": true,
+        },
+      );
+
+      final responseStream = response.data as ResponseBody;
+      String fullResponse = "";
+
+      await for (var chunk in responseStream.stream.transform(
+  utf8.decoder as StreamTransformer<Uint8List, String>  // Cast to StreamTransformer<Uint8List, String>
+)) {
+  chunk.split('\n').forEach((line) {
+    if (line.startsWith('data: ') && !line.contains('[DONE]')) {
+      try {
+        final jsonResponse = json.decode(line.substring(6));
+        final content = jsonResponse['choices'][0]['delta']['content'] ?? "";
+        fullResponse += content;
+        
+        setState(() {
+          _messages[lastIndex] = ChatMessage(
+            content: fullResponse,
+            isUser: false,
+          );
+        });
+        _scrollToBottom();
+      } catch (e) {
+        print("Error parsing: $e");
+      }
+    }
+  });
+}
+
+    } catch (e) {
+      setState(() {
+        _messages[lastIndex] = ChatMessage(
+          content: "Error: ${e.toString()}",
+          isUser: false,
+        );
+      });
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Chatbot"),
+        backgroundColor: Colors.blue[800],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                return _ChatBubble(
+                  text: message.content,
+                  isUser: message.isUser,
+                );
+              },
+            ),
+          ),
+          _buildInputField(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputField() {
+    return Container(
+      padding: const EdgeInsets.all(8.0),
+      color: Colors.grey[200],
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              decoration: InputDecoration(
+                hintText: "Type your message...",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onSubmitted: (_) => _sendMessage(),
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.send,
+              color: _isLoading ? Colors.grey : Colors.blue,
+            ),
+            onPressed: _isLoading ? null : _sendMessage,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatBubble extends StatelessWidget {
+  final String text;
+  final bool isUser;
+
+  const _ChatBubble({required this.text, required this.isUser});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.8,
+        ),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isUser ? Colors.blue[100] : Colors.grey[200],
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isUser ? Colors.blue[800] : Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 ```
 
@@ -281,10 +491,10 @@ class CartPage extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'main_page.dart';
-import 'register_page.dart'; // Import RegisterPage for navigation
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key}); // ✅ Add const
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -309,7 +519,7 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) { // Ensure widget is still active before navigation
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Welcome, ${userCredential.user!.email}!')),
         );
@@ -381,7 +591,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
 ```
 
 # pages\main_page.dart
@@ -394,59 +603,156 @@ class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
   @override
-  _MainPageState createState() => _MainPageState();
+  State<MainPage> createState() => _MainPageState();
 }
 
 class _MainPageState extends State<MainPage> {
-  final List<CartItem> cartItems = [];
+  final List<CartItem> _cartItems = [];
 
   void _addToCart(CartItem item) {
     setState(() {
-      int index = cartItems.indexWhere((element) => element.name == item.name);
+      final index = _cartItems.indexWhere((i) => i.name == item.name);
       if (index != -1) {
-        cartItems[index].quantity++;
+        _cartItems[index].quantity++;
       } else {
-        cartItems.add(item);
+        _cartItems.add(item);
       }
     });
-
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("${item.name} added to cart!")),
+      SnackBar(content: Text('${item.name} added to cart!')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sports Shop')),
-      body: ListView(
+      appBar: AppBar(
+        title: const Text('Sports Shop'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shopping_cart),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CartPage(cartItems: _cartItems),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: GridView.count(
+        crossAxisCount: 2,
+        padding: const EdgeInsets.all(16),
         children: [
-          ProductCard(
-            image: 'assets/football.jpg',
-            title: 'Football',
-            description: 'High-quality football for games and practice.',
-            price: 60,
-            addToCart: _addToCart,
+          _buildProductCard(
+            'Football',
+            'assets/football.jpg',
+            60.0,
+            'High-quality football for games and practice',
           ),
-          ProductCard(
-            image: 'assets/baseball.jpg',
-            title: 'Baseball',
-            description: 'Durable baseball for all players.',
-            price: 20,
-            addToCart: _addToCart,
+          _buildProductCard(
+            'Baseball',
+            'assets/baseball.jpg',
+            20.0,
+            'Durable baseball for all players',
           ),
-          ProductCard(
-            image: 'assets/basketball.jpg',
-            title: 'Basketball',
-            description: 'Premium basketball with excellent grip.',
-            price: 90,
-            addToCart: _addToCart,
+          _buildProductCard(
+            'Basketball',
+            'assets/basketball.jpg',
+            90.0,
+            'Premium basketball with excellent grip',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductCard(String name, String image, double price, String desc) {
+    return Card(
+      elevation: 4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Image.asset(image, fit: BoxFit.cover),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                )),
+                Text(desc, style: const TextStyle(fontSize: 14)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('\$$price', style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    )),
+                    ElevatedButton(
+                      onPressed: () => _addToCart(CartItem(
+                        name: name,
+                        image: image,
+                        price: price,
+                      )),
+                      child: const Text('Add to Cart'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 }
+```
+
+# pages\map_page.dart
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+class MapPage extends StatefulWidget {
+  const MapPage({super.key});
+
+  @override
+  // ignore: library_private_types_in_public_api
+  _MapPageState createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  static const CameraPosition _initialPosition = CameraPosition(
+    target: LatLng(37.7749, -122.4194),
+    zoom: 12.0,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Map")),
+      body: const GoogleMap(
+        initialCameraPosition: _initialPosition,
+      ),
+    );
+  }
+}
+
+```
+
+# pages\product_card.dart
+
+```dart
+import 'package:flutter/material.dart';
+import 'cart_item.dart';
 
 class ProductCard extends StatelessWidget {
   final String image;
@@ -497,47 +803,46 @@ class ProductCard extends StatelessWidget {
 
 ```
 
-# pages\map_page.dart
+# pages\profile_page.dart
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class MapPage extends StatefulWidget {
-  const MapPage({super.key});
-
-  @override
-  _MapPageState createState() => _MapPageState();
-}
-
-class _MapPageState extends State<MapPage> {
-  static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(37.7749, -122.4194),
-    zoom: 12.0,
-  );
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    User? user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Map")),
-      body: const GoogleMap(
-        initialCameraPosition: _initialPosition,
+      appBar: AppBar(title: const Text("Profile")),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person, size: 100, color: Colors.grey),
+            const SizedBox(height: 20),
+            Text(
+              user != null ? "Hello, ${user.email}" : "Not Logged In",
+              style: const TextStyle(fontSize: 18),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                // ignore: use_build_context_synchronously
+                Navigator.of(context).pushReplacementNamed('/');
+              },
+              child: const Text("Logout"),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-
-```
-
-# pages\product_card.dart
-
-```dart
-// TODO Implement this library.
-```
-
-# pages\profile_page.dart
-
-```dart
 
 ```
 
@@ -584,14 +889,16 @@ class _RegisterPageState extends State<RegisterPage> {
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) { // Ensures widget is still active before calling Navigator
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Registration successful! Welcome, ${userCredential.user!.email}')),
         );
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
+          MaterialPageRoute(
+            builder: (context) => LoginPage(), // ✅ Removed 'const' from here
+          ),
         );
       }
     } on FirebaseAuthException catch (e) {

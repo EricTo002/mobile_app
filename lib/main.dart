@@ -5,8 +5,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile_app/pages/login_page.dart';
 import 'package:mobile_app/pages/main_page.dart';
 import 'package:mobile_app/pages/map_page.dart';
-import 'package:mobile_app/pages/camera_page.dart';
+import 'package:mobile_app/pages/camera_page.dart'; // Correct import for CameraTabPage
 import 'package:mobile_app/pages/chatbot_page.dart';
+import 'package:mobile_app/pages/cart_page.dart';  // Make sure this is correct
+import 'package:mobile_app/pages/cart_item.dart';  // Make sure this is correct
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,9 +71,35 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _selectedIndex = index);
   }
 
+  // Sign out method
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have been signed out!')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error signing out. Please try again!')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: _signOut,  // Logout button
+          ),
+        ],
+      ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

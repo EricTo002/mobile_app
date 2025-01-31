@@ -41,6 +41,12 @@ dependencies:
   http: ^1.1.0
   # ✅ A powerful Http client for Dart, which supports Interceptors, Global configuration, FormData, Request Cancellation, File downloading, Timeout etc.
   dio: ^5.3.0
+  camera: ^0.10.0+1  # Camera plugin for accessing the camera
+  google_ml_kit: ^0.9.0  # ML Kit plugin for object detection and more
+  image_picker: ^0.8.5+3
+  firebase_ml_vision: ^0.12.0+3
+  url_launcher: ^6.3.1
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

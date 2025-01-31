@@ -1,13 +1,5 @@
 import 'package:flutter/material.dart';
-
-class CartItem {
-  final String name;
-  final String image;
-  final double price;
-  int quantity;
-
-  CartItem({required this.name, required this.image, required this.price, this.quantity = 1});
-}
+import 'cart_item.dart'; // Import CartItem from cart_item.dart
 
 class CartPage extends StatelessWidget {
   final List<CartItem> cartItems;

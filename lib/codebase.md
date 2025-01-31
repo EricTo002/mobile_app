@@ -102,7 +102,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mobile_app/pages/login_page.dart';
 import 'package:mobile_app/pages/main_page.dart';
 import 'package:mobile_app/pages/map_page.dart';
-import 'package:mobile_app/pages/camera_page.dart';
+import 'package:mobile_app/pages/camera_page.dart'; // Import CameraTabPage here
 import 'package:mobile_app/pages/chatbot_page.dart';
 
 void main() async {
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _pages = [
     const MainPage(),
     const MapPage(),
-    const CameraTabPage(),
+    const CameraTabPage(), // Correct reference for CameraTabPage
     const ChatbotPage(),
   ];
 
@@ -184,25 +184,134 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
 ```
 
 # pages\camera_page.dart
 
 ```dart
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart'; // For checking platform
+import 'dart:typed_data';
+import 'dart:convert';  // For Base64 encoding (web)
+import 'dart:html' as html;  // For web file reading
+import 'dart:io' as io;  // For mobile file handling (make sure to import io for mobile platforms)
 
-class CameraTabPage extends StatelessWidget {
+class CameraTabPage extends StatefulWidget {
   const CameraTabPage({super.key});
 
   @override
+  _CameraTabPageState createState() => _CameraTabPageState();
+}
+
+class _CameraTabPageState extends State<CameraTabPage> {
+  dynamic _imageFile; // Use dynamic type to handle both Web and Mobile
+  final picker = ImagePicker();
+  bool _isProcessing = false;
+  String _message = '';
+  String? _base64Image; // To store the Base64 image for web compatibility
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  // Pick an image from the gallery
+  Future<void> _pickImage() async {
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        if (kIsWeb) {
+          _imageFile = pickedFile; // For web, store as XFile
+        } else {
+          _imageFile = io.File(pickedFile.path); // For mobile, store as io.File
+        }
+      });
+
+      // Convert image to Base64 for web compatibility
+      if (kIsWeb) {
+        _convertFileToBase64(pickedFile); // Convert to Base64 on web
+      }
+
+      // Directly assign message for hardcoded response
+      setState(() {
+        _isProcessing = true;
+        if (pickedFile.name.toLowerCase().contains("football")) {
+          _message = 'This is a football.';
+        } else if (pickedFile.name.toLowerCase().contains("basketball")) {
+          _message = 'This is a basketball.';
+        } else {
+          _message = 'This is an unknown object.';
+        }
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // For Web: Convert the file to Base64
+  Future<void> _convertFileToBase64(XFile file) async {
+    final reader = html.FileReader();
+
+    // Convert XFile to Blob
+    final blob = html.Blob([await file.readAsBytes()]);  // Convert the XFile into a Blob for web compatibility
+    reader.readAsDataUrl(blob);  // Reads the Blob and encodes it to Base64 string
+
+    reader.onLoadEnd.listen((e) {
+      setState(() {
+        _base64Image = reader.result as String;
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.camera_alt, size: 100, color: Colors.orange),
-          Text('Camera Page', style: TextStyle(fontSize: 24)),
-        ],
+    return Scaffold(
+      appBar: AppBar(title: const Text('Image Upload and Object Recognition')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_imageFile != null)
+              Column(
+                children: [
+                  // Use Image.memory for web compatibility (Base64 encoded image)
+                  kIsWeb
+                      ? Image.network(
+                          _base64Image!,
+                          height: 250,
+                          width: double.infinity,
+                          fit: BoxFit.contain, // To ensure the image fits within the bounds
+                        )
+                      : Image.file(
+                          _imageFile as io.File,
+                          height: 250,
+                          width: double.infinity,
+                          fit: BoxFit.contain, // To ensure the image fits within the bounds
+                        ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ElevatedButton(
+              onPressed: _pickImage,
+              child: const Text('Upload Image'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {}, // Empty onPressed function (does nothing)
+              child: const Text('Camera Button'),
+            ),
+            if (_isProcessing)
+              const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            if (_message.isNotEmpty)
+              Text(
+                _message,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -252,40 +361,58 @@ class CartPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Shopping Cart")),
-      body: ListView.builder(
-        itemCount: cartItems.length,
-        itemBuilder: (context, index) {
-          final item = cartItems[index];
-          return ListTile(
-            leading: Image.asset(item.image, width: 50),
-            title: Text(item.name),
-            subtitle: Text("\$${item.price} x ${item.quantity}"),
-            trailing: Text("\$${item.price * item.quantity}"),
-          );
-        },
+      body: Stack(
+        children: [
+          // The list of cart items
+          ListView.builder(
+            itemCount: cartItems.length,
+            itemBuilder: (context, index) {
+              final item = cartItems[index];
+              return ListTile(
+                leading: Image.asset(item.image, width: 50),
+                title: Text(item.name),
+                subtitle: Text("\$${item.price} x ${item.quantity}"),
+                trailing: Text("\$${item.price * item.quantity}"),
+              );
+            },
+          ),
+          
+          // Pay Button on the bottom right
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: ElevatedButton(
+              onPressed: () {
+                // Show success message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("You have successfully paid!!!"),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: const Text('Pay'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                backgroundColor: Colors.green, // Button color
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
 ```
 
 # pages\chatbot_page.dart
 
 ```dart
-import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter/scheduler.dart';
-
-class ChatMessage {
-  final String content;
-  final bool isUser;
-
-  ChatMessage({required this.content, required this.isUser});
-}
 
 class ChatbotPage extends StatefulWidget {
   const ChatbotPage({super.key});
@@ -296,188 +423,64 @@ class ChatbotPage extends StatefulWidget {
 
 class _ChatbotPageState extends State<ChatbotPage> {
   final TextEditingController _controller = TextEditingController();
-  final List<ChatMessage> _messages = [];
-  final ScrollController _scrollController = ScrollController();
-  final Dio _dio = Dio();
-  bool _isLoading = false;
-  int lastIndex = 0;
+  final List<String> _messages = [];
 
-  // Correct API URL and API key
-  static const String _apiKey = "sk-cjGCB9tIjunKEj0MBLrl5SKJSJ1VwuynAozFe5TMxxhSlDjC";  // Replace with actual key
-  static const String _baseUrl = "https://api.chatanywhere.tech/v1/chat/completions";  // Fixed URL
-
-  void _scrollToBottom() {
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  // Hardcoded responses for "Hello" and "What is sport?"
+  String _getBotResponse(String userMessage) {
+    if (userMessage.toLowerCase() == "hello") {
+      return "Hi there! How can I assist you today?";
+    } else if (userMessage.toLowerCase() == "what is sport") {
+      return "Sport is an activity that involves physical exertion and skill in which an individual or team competes against others. It enhances physical fitness, teamwork, mental strength, discipline, and provides entertainment.";
+    } else {
+      return "I'm not sure about that.";
+    }
   }
 
-  Future<void> _sendMessage() async {
-    if (_controller.text.isEmpty || _isLoading) return;
-
+  void _sendMessage() {
     final userMessage = _controller.text;
-    _controller.clear();
+    if (userMessage.isEmpty) return;
 
     setState(() {
-      _messages.add(ChatMessage(content: userMessage, isUser: true));
-      _messages.add(ChatMessage(content: "", isUser: false));
-      lastIndex = _messages.length - 1;
-      _isLoading = true;
+      _messages.add("You: $userMessage");
+      _messages.add("Bot: ${_getBotResponse(userMessage)}");
+      _controller.clear();
     });
-
-    _scrollToBottom();
-
-    try {
-      final response = await _dio.post(
-        _baseUrl,  // Correct API URL
-        options: Options(
-          headers: {
-            "Authorization": "Bearer $_apiKey",  // Ensure valid API Key
-            "Content-Type": "application/json",
-          },
-          responseType: ResponseType.stream,  // Handle streaming response
-        ),
-        data: {
-          "model": "gpt-3.5-turbo",
-          "messages": [
-            {"role": "user", "content": userMessage}
-          ],
-          "stream": true,
-        },
-      );
-
-      final responseStream = response.data as ResponseBody;
-      String fullResponse = "";
-
-      await for (var chunk in responseStream.stream.transform(
-  utf8.decoder as StreamTransformer<Uint8List, String>  // Cast to StreamTransformer<Uint8List, String>
-)) {
-  chunk.split('\n').forEach((line) {
-    if (line.startsWith('data: ') && !line.contains('[DONE]')) {
-      try {
-        final jsonResponse = json.decode(line.substring(6));
-        final content = jsonResponse['choices'][0]['delta']['content'] ?? "";
-        fullResponse += content;
-        
-        setState(() {
-          _messages[lastIndex] = ChatMessage(
-            content: fullResponse,
-            isUser: false,
-          );
-        });
-        _scrollToBottom();
-      } catch (e) {
-        print("Error parsing: $e");
-      }
-    }
-  });
-}
-
-    } catch (e) {
-      setState(() {
-        _messages[lastIndex] = ChatMessage(
-          content: "Error: ${e.toString()}",
-          isUser: false,
-        );
-      });
-    } finally {
-      setState(() => _isLoading = false);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Chatbot"),
-        backgroundColor: Colors.blue[800],
-      ),
+      appBar: AppBar(title: const Text('Chatbot')),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              controller: _scrollController,
               itemCount: _messages.length,
               itemBuilder: (context, index) {
-                final message = _messages[index];
-                return _ChatBubble(
-                  text: message.content,
-                  isUser: message.isUser,
+                return ListTile(
+                  title: Text(_messages[index]),
                 );
               },
             ),
           ),
-          _buildInputField(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInputField() {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      color: Colors.grey[200],
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: "Type your message...",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(hintText: "Type a message..."),
+                  ),
                 ),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              onSubmitted: (_) => _sendMessage(),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _sendMessage,
+                ),
+              ],
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.send,
-              color: _isLoading ? Colors.grey : Colors.blue,
-            ),
-            onPressed: _isLoading ? null : _sendMessage,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ChatBubble extends StatelessWidget {
-  final String text;
-  final bool isUser;
-
-  const _ChatBubble({required this.text, required this.isUser});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
-        ),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isUser ? Colors.blue[100] : Colors.grey[200],
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: isUser ? Colors.blue[800] : Colors.black,
-          ),
-        ),
       ),
     );
   }
@@ -720,27 +723,99 @@ class _MainPageState extends State<MainPage> {
 ```dart
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart'; // To open URL
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _MapPageState createState() => _MapPageState();
 }
 
 class _MapPageState extends State<MapPage> {
   static const CameraPosition _initialPosition = CameraPosition(
-    target: LatLng(37.7749, -122.4194),
+    target: LatLng(22.3193, 114.1694), // Default location set to Hong Kong
     zoom: 12.0,
   );
+
+  // Define markers with descriptions for multiple locations
+  final Set<Marker> _markers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeMarkers();
+  }
+
+  // Initialize the markers
+  void _initializeMarkers() {
+    _markers.add(
+      Marker(
+        markerId: MarkerId('hongkong_park'),
+        position: LatLng(22.2819, 114.1584),
+        infoWindow: InfoWindow(
+          title: 'Hong Kong Park',
+          snippet:
+              'Hong Kong Park is a lush, green oasis in the heart of the city. It offers beautiful landscapes, fountains, and a peaceful escape from the hustle and bustle.',
+          onTap: () => _openLocation('https://en.wikipedia.org/wiki/Hong_Kong_Park'),
+        ),
+      ),
+    );
+    _markers.add(
+      Marker(
+        markerId: MarkerId('kowloon_tsai'),
+        position: LatLng(22.3199, 114.1718),
+        infoWindow: InfoWindow(
+          title: 'Kowloon Tsai Sports Ground',
+          snippet:
+              'Kowloon Tsai Sports Ground is a popular venue for various sports. It features open fields for football, cricket, and athletics, offering recreational activities for locals and tourists.',
+          onTap: () => _openLocation('https://en.wikipedia.org/wiki/Kowloon_Tsai_Sports_Ground'),
+        ),
+      ),
+    );
+    _markers.add(
+      Marker(
+        markerId: MarkerId('victoria_park'),
+        position: LatLng(22.2813, 114.1890),
+        infoWindow: InfoWindow(
+          title: 'Victoria Park',
+          snippet:
+              'Victoria Park, one of Hong Kong’s oldest and largest parks, is a beautiful green space with walking paths, sports courts, and plenty of facilities for public enjoyment.',
+          onTap: () => _openLocation('https://en.wikipedia.org/wiki/Victoria_Park,_Hong_Kong'),
+        ),
+      ),
+    );
+    _markers.add(
+      Marker(
+        markerId: MarkerId('kowloon_walled'),
+        position: LatLng(22.3155, 114.1920),
+        infoWindow: InfoWindow(
+          title: 'Kowloon Walled City Park',
+          snippet:
+              'Kowloon Walled City Park is a historical site that was once home to the densest place on Earth. Today, it features beautiful landscaping and relics of its past.',
+          onTap: () => _openLocation('https://en.wikipedia.org/wiki/Kowloon_Walled_City'),
+        ),
+      ),
+    );
+  }
+
+  // Open the location in the browser
+  void _openLocation(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      throw 'Could not open the location';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Map")),
-      body: const GoogleMap(
+      appBar: AppBar(title: const Text("Map of Hong Kong Playground Locations")),
+      body: GoogleMap(
         initialCameraPosition: _initialPosition,
+        markers: _markers,
+        onMapCreated: (GoogleMapController controller) {},
       ),
     );
   }

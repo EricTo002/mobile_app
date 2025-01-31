@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:local_auth/local_auth.dart';  // Import the local_auth package
 import 'main_page.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key}); // ✅ Add const
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -14,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String _errorMessage = '';
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void dispose() {
@@ -48,6 +50,40 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  // Method to check biometric authentication (Touch ID / Face ID)
+  Future<void> _authenticateWithBiometrics() async {
+    try {
+      bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      if (!canCheckBiometrics) {
+        setState(() {
+          _errorMessage = "No biometrics enrolled on this device!";
+        });
+        return;
+      }
+
+      bool isAuthenticated = await _localAuth.authenticate(
+        localizedReason: 'Please authenticate to login',
+        options: const AuthenticationOptions(stickyAuth: true),
+      );
+
+      if (isAuthenticated) {
+        // You can handle the successful biometric authentication here, for example:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Authenticated with Biometrics!')),
+        );
+        // Proceed with Firebase authentication or any other logic.
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainPage()),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = "Authentication failed: ${e.toString()}";
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -78,12 +114,16 @@ class _LoginPageState extends State<LoginPage> {
               if (_errorMessage.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: Text(_errorMessage, style: TextStyle(color: Colors.red)),
+                  child: Text(_errorMessage, style: const TextStyle(color: Colors.red)),
                 ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _login,
                 child: const Text('Login'),
+              ),
+              ElevatedButton(
+                onPressed: _authenticateWithBiometrics, // Trigger biometric authentication
+                child: const Text('Login with Biometrics (Touch ID/Face ID)'),
               ),
               TextButton(
                 onPressed: () {

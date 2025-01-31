@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'cart_page.dart';
+import 'cart_page.dart' as cartPage; // Import CartPage here
+import 'package:firebase_auth/firebase_auth.dart';  // Import FirebaseAuth
+import 'login_page.dart';  // Import your LoginPage class
+import 'cart_item.dart'; // Import CartItem from cart_item.dart (this file)
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -11,6 +14,27 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   final List<CartItem> _cartItems = [];
 
+  // Sign out method
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      // Show a message to confirm the user has signed out
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have been signed out!')),
+      );
+      // Navigate back to login page
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error signing out. Please try again!')),
+      );
+    }
+  }
+
+  // Add items to the cart
   void _addToCart(CartItem item) {
     setState(() {
       final index = _cartItems.indexWhere((i) => i.name == item.name);
@@ -36,9 +60,13 @@ class _MainPageState extends State<MainPage> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => CartPage(cartItems: _cartItems),
+                builder: (context) => cartPage.CartPage(cartItems: _cartItems),
               ),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: _signOut,  // Call the _signOut function on press
           ),
         ],
       ),
@@ -69,6 +97,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // Build the product card dynamically
   Widget _buildProductCard(String name, String image, double price, String desc) {
     return Card(
       elevation: 4,

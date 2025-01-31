@@ -1,17 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:typed_data'; // Needed for Uint8List in stream transformation
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/scheduler.dart';
-
-class ChatMessage {
-  final String content;
-  final bool isUser;
-
-  ChatMessage({required this.content, required this.isUser});
-}
 
 class ChatbotPage extends StatefulWidget {
   const ChatbotPage({super.key});
@@ -21,186 +13,83 @@ class ChatbotPage extends StatefulWidget {
 }
 
 class _ChatbotPageState extends State<ChatbotPage> {
-  final TextEditingController _controller = TextEditingController();
-  final List<ChatMessage> _messages = [];
-  final ScrollController _scrollController = ScrollController();
-  final Dio _dio = Dio();
-  bool _isLoading = false;
-  int lastIndex = 0;
+  late Dio _dio;
+  TextEditingController _controller = TextEditingController();
+  String _responseMessage = '';
 
-  static const String _apiKey = "sk-cjGCB9tIjunKEj0MBLrl5SKJSJ1VwuynAozFe5TMxxhSlDjC";
-  static const String _baseUrl = "https://api.chatanywhere.tech/v1/chat/completions";
-
-  void _scrollToBottom() {
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    _dio = Dio();
   }
 
-  Future<void> _sendMessage() async {
-    if (_controller.text.isEmpty || _isLoading) return;
-
-    final userMessage = _controller.text;
-    _controller.clear();
-
-    setState(() {
-      _messages.add(ChatMessage(content: userMessage, isUser: true));
-      _messages.add(ChatMessage(content: "", isUser: false));
-      lastIndex = _messages.length - 1;
-      _isLoading = true;
-    });
-
-    _scrollToBottom();
-
+  // Method to send message to the API and receive a response
+  Future<void> _sendMessage(String userMessage) async {
     try {
       final response = await _dio.post(
-        _baseUrl,
+        'https://api.chatanywhere.tech/v1/chat/completions', // Your API endpoint
         options: Options(
           headers: {
-            "Authorization": "Bearer $_apiKey",
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ', // Replace with your actual API key
           },
-          responseType: ResponseType.stream,
         ),
         data: {
-          "model": "gpt-3.5-turbo",
-          "messages": [
-            {"role": "user", "content": userMessage}
+          'messages': [
+            {'role': 'user', 'content': userMessage}
           ],
-          "stream": true,
+          'stream': false, // This will handle one-time responses (not streaming)
         },
       );
 
-      final responseStream = response.data as ResponseBody;
-      String fullResponse = "";
-
-      // Corrected stream transformation
-      await for (var chunk in responseStream.stream.transform(utf8.decoder)) {
-        chunk.split('\n').forEach((line) {
-          if (line.startsWith('data: ') && !line.contains('[DONE]')) {
-            try {
-              final jsonResponse = json.decode(line.substring(6));
-              final content = jsonResponse['choices'][0]['delta']['content'] ?? "";
-              fullResponse += content;
-              
-              setState(() {
-                _messages[lastIndex] = ChatMessage(
-                  content: fullResponse,
-                  isUser: false,
-                );
-              });
-              _scrollToBottom();
-            } catch (e) {
-              print("Error parsing: $e");
-            }
-          }
+      // Parse the response from the API
+      final responseData = response.data;
+      if (responseData != null && responseData['choices'] != null) {
+        setState(() {
+          _responseMessage = responseData['choices'][0]['message']['content'] ?? 'No response from API';
+        });
+      } else {
+        setState(() {
+          _responseMessage = 'No valid response from API';
         });
       }
-
     } catch (e) {
       setState(() {
-        _messages[lastIndex] = ChatMessage(
-          content: "Error: ${e.toString()}",
-          isUser: false,
-        );
+        _responseMessage = 'Error in sending message: $e';
       });
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Chatbot"),
-        backgroundColor: Colors.blue[800],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                return _ChatBubble(
-                  text: message.content,
-                  isUser: message.isUser,
-                );
-              },
-            ),
-          ),
-          _buildInputField(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInputField() {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      color: Colors.grey[200],
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
+      appBar: AppBar(title: const Text("Chatbot")),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
               controller: _controller,
-              decoration: InputDecoration(
-                hintText: "Type your message...",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                filled: true,
-                fillColor: Colors.white,
+              decoration: const InputDecoration(
+                labelText: "Enter your message",
+                border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) => _sendMessage(),
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.send,
-              color: _isLoading ? Colors.grey : Colors.blue,
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                String userMessage = _controller.text.trim();
+                if (userMessage.isNotEmpty) {
+                  _sendMessage(userMessage);
+                }
+              },
+              child: const Text('Send Message'),
             ),
-            onPressed: _isLoading ? null : _sendMessage,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChatBubble extends StatelessWidget {
-  final String text;
-  final bool isUser;
-
-  const _ChatBubble({required this.text, required this.isUser});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
-        ),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isUser ? Colors.blue[100] : Colors.grey[200],
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: isUser ? Colors.blue[800] : Colors.black,
-          ),
+            const SizedBox(height: 16),
+            _responseMessage.isNotEmpty
+                ? Text("Response: $_responseMessage")
+                : const Text("No response yet"),
+          ],
         ),
       ),
     );

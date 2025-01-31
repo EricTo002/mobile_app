@@ -1,3 +1,4 @@
+// cart_item.dart
 class CartItem {
   final String name;
   final String image;

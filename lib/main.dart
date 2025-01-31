@@ -61,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _pages = [
     const MainPage(),
     const MapPage(),
-    const CameraTabPage(),
+    const CameraTabPage(), // Correct reference for CameraTabPage
     const ChatbotPage(),
   ];
 
